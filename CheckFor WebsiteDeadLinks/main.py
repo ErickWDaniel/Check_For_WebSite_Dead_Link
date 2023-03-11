@@ -1,109 +1,74 @@
 import os
-import xml.etree.ElementTree as ET
-from typing import List, Tuple
-from urllib.parse import urlparse
-
+import re
 import requests
+import socket
 from bs4 import BeautifulSoup
 
 
-def is_valid_url(url: str) -> bool:
-    """
-    Check if the given string is a valid URL.
-    """
+def is_valid_url(url):
+    """Checks if a given string is a valid URL or IP address."""
     try:
-        result = urlparse(url)
-        return all([result.scheme, result.netloc])
-    except ValueError:
+        result = socket.getaddrinfo(url, None)
+        return True
+    except:
         return False
 
 
-def get_links(url: str, timeout: int) -> List[str]:
-    """
-    Get all links from the given URL.
-    """
+def get_links(url, timeout):
+    """Gets all the links from a given URL."""
     try:
-        with requests.get(url, timeout=timeout) as response:
-            soup = BeautifulSoup(response.content, "html.parser")
-            return [link.get("href") for link in soup.find_all("a") if link.has_attr("href")]
-    except requests.exceptions.RequestException as e:
-        print(f"Error: Failed to get links from {url}: {e}")
+        response = requests.get(url, timeout=timeout)
+        soup = BeautifulSoup(response.text, "html.parser")
+        links = [link.get("href") for link in soup.find_all("a")]
+        return links
+    except:
         return []
 
 
-def check_link(link: str, timeout: int) -> Tuple[str, str]:
-    """
-    Check if the given link is valid.
-    """
+def check_link(link, timeout):
+    """Checks if a given link is dead."""
     try:
-        with requests.head(link, timeout=timeout) as response:
-            if response.status_code >= 400:
-                return (link, response.reason)
-            else:
-                return None
-    except requests.exceptions.RequestException as e:
-        return (link, str(e))
+        response = requests.get(link, timeout=timeout)
+        if response.status_code >= 400:
+            return link
+    except:
+        return link
 
 
-def save_to_txt(dead_links: List[Tuple[str, str]], file_path: str) -> None:
-    """
-    Save the list of dead links to a TXT file.
-    """
+def save_to_txt(dead_links, file_path):
+    """Saves the dead links to a text file."""
     with open(file_path, "w") as f:
-        for link, reason in dead_links:
-            f.write(f"{link} ({reason})\n")
-    print(f"Results saved to {file_path}.")
+        f.write("\n".join(dead_links))
 
 
-def save_to_xml(dead_links: List[Tuple[str, str]], file_path: str) -> None:
-    """
-    Save the list of dead links to an XML file.
-    """
-    root = None
-
-    # If the file already exists, load the existing XML and get the root element
-    if os.path.exists(file_path):
-        try:
-            tree = ET.parse(file_path)
-            root = tree.getroot()
-        except ET.ParseError:
-            print(f"Error: Failed to parse {file_path}. Creating new root element.")
-
-    # If the file doesn't exist or couldn't be parsed, create a new root element
-    if root is None:
-        root = ET.Element("dead_links")
-
-    # Create an element for each dead link and append it to the root
-    for link, reason in dead_links:
-        link_elem = ET.Element("link")
-        link_elem.set("url", link)
-        link_elem.set("reason", reason)
-        root.append(link_elem)
-
-    # Write the root to the file
-    tree = ET.ElementTree(root)
-    try:
-        with open(file_path, "wb") as f:
-            tree.write(f, encoding='utf-8', xml_declaration=True)
-        print(f"Results saved to {file_path}.")
-    except OSError as e:
-        print(f"Error: Failed to write to {file_path}. {e}")
+def save_to_xml(dead_links, file_path):
+    """Saves the dead links to an XML file."""
+    with open(file_path, "w") as f:
+        f.write("<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n")
+        f.write("<dead_links>\n")
+        for link in dead_links:
+            f.write(f"  <link>{link}</link>\n")
+        f.write("</dead_links>")
 
 
 if __name__ == "__main__":
-    url = input("Enter the URL to check for dead links: ")
+    url_or_ip = input("Enter the URL or IP address to check for dead links: ")
     timeout = 100
-    file_format = "xml"
 
-    dead_links = [check_link(link, timeout) for link in get_links(url, timeout)]
+    print(f"Getting links from {url_or_ip}...")
+    links = get_links(url_or_ip, timeout)
+    print(f"Found {len(links)} links.")
 
-    if file_format.lower() == "txt":
-        file_path = input("Enter the file path to save the results: ")
-        save_to_txt(dead_links, file_path)
-    elif file_format.lower() == "xml":
-        # Set the file path to be saved in the project directory
-        file_path = os.path.join(os.getcwd(), "dead_links.xml")
-        save_to_xml(dead_links, file_path)
+    print("Checking links...")
+    dead_links = [check_link(link, timeout) for link in links]
+    dead_links = [link for link in dead_links if link is not None]
+    print(f"Found {len(dead_links)} dead links.")
+
+    # Save results in both formats automatically
+    file_name = "dead_links"
+    if len(dead_links) > 0:
+        save_to_txt(dead_links, f"{file_name}.txt")
+        save_to_xml(dead_links, f"{file_name}.xml")
+        print(f"Dead links saved in {file_name}.txt and {file_name}.xml")
     else:
-        print("Error: Invalid file format.")
-
+        print("No dead links found.")
