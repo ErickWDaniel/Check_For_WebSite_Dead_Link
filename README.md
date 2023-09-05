@@ -4,7 +4,7 @@
 To check for dead link in any website,enjoyIts save the result on xml and txt file too you can check the result at end
 
 
-![Screenshot](path/to/your/DeadlinkChecker.png)
+![Screenshot](path/to/your/DeadlinkChecker.jpg)
 
 ## 😂 Here is a random joke that'll make you laugh!
 ![Jokes Card](https://readme-jokes.vercel.app/api)
